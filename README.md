@@ -1,4 +1,4 @@
-# Nurse Scheduling Problem under the Trustworthy AI Lens
+# Nurse Scheduling under the Trustworthy-AI Lens
 
 A comparative evaluation of three approaches to the **Nurse Scheduling Problem** — exact MILP,
 simulated annealing, and an ML + MILP hybrid — against four attributes of trustworthy AI:
@@ -22,7 +22,7 @@ combinatorial, multi-objective, hard-constrained, and **free of any sensitive cl
 The question addressed here is not *which method is fastest*, but **what "trustworthy" means for each
 method, attribute by attribute**.
 
-## What this repository contains
+## The three approaches
 
 | Approach | Principle | Position on the admissibility guarantee |
 |---|---|---|
@@ -34,25 +34,29 @@ The model and metrics are specified in §4 of the report; headline results are s
 
 ## Layout
 
-```
-NSP_fil_rouge.ipynb        consolidated notebook, runnable end to end
-  §1  Model                instance, MILP solver (cold / warm), ML features
-  §2  Dataset              50 instances, MILP labels (180 s, 3 % gap), 40/10 split
-  §3  Simulated annealing  encoding, energy, neighbourhoods, cooling schedule
-  §4  Experiment 1         MILP vs SA at equal budget (300 s)              -> Table 4
-  §5  Training             XGBoost + MLP (seed 42)
-  §6  Experiment 2         cold / warm-XGB / warm-MLP trajectories, 5→60 s -> Figure 1
-  §7  Experiment 3         stress test over N (D = 28 fixed), N = 24 → 17
-  §8  Experiment 4         2×2 factorial design (strict 11 h rest × night-dispersion
-                           penalty) across all three approaches — added after submission
-```
+`NSP_fil_rouge.ipynb` is a single notebook, runnable end to end:
+
+| Section | Content | Maps to |
+|---|---|---|
+| §1 | Model: instance, MILP solver (cold / warm), ML features | §4 of the report |
+| §2 | Dataset: 50 instances, MILP labels (180 s, 3 % gap), 40/10 split | §5.1 |
+| §3 | Simulated annealing: encoding, energy, neighbourhoods, cooling | §5.2 |
+| §4 | **Experiment 1** — MILP vs SA at equal budget (300 s) | **Table 4** |
+| §5 | Training: XGBoost + MLP (seed 42), model-loading helpers | §5.3 |
+| §6 | **Experiment 2** — hybrid JFI: fairness inheritance, 200 solves | **Table 5**, warm column |
+| §7 | **Experiment 3** — cold / warm-XGB / warm-MLP trajectories, 5→60 s | **Figure 1** |
+| §8 | **Experiment 4** — SHAP analysis of the warm-start model (E3) | **Figure 3** |
+| §9 | **Experiment 5** — Pareto fronts, weight calibration (E1) | **Figure 2** |
+| §10 | **Experiment 6** — robustness to disruptions P1–P3, MILP and SA | **Table 6** |
+| §11 | **Experiment 7** — stress test over N (D = 28 fixed), N = 24 → 17 | scaling analysis |
+| §12 | **Experiment 8** — 2×2 factorial design | added after submission |
 
 Every expensive step is cached under `RESULTS_DIR`; re-running only recomputes what is missing.
-Set `FORCE_RERUN = True` to recompute everything.
+Set `FORCE_RERUN = True` to recompute everything. §6 is resumable solve by solve (`hybrid_jfi_multiseed.csv`).
 
 ## Requirements
 
-- Python ≥ 3.10 with `gurobipy`, `xgboost`, `torch`, `scikit-learn`, `pandas`, `pyarrow`, `matplotlib`
+- Python ≥ 3.10 with `gurobipy`, `xgboost`, `torch`, `scikit-learn`, `shap`, `pandas`, `pyarrow`, `matplotlib`
 - **A Gurobi licence** able to handle models of roughly 2,900 binary variables. The size-limited
   licence bundled with `pip install gurobipy` is **not** sufficient (2,000-variable cap).
 
@@ -62,8 +66,10 @@ Licence credentials are read from the environment — **no secrets are committed
 export GRB_WLSACCESSID="..."
 export GRB_WLSSECRET="..."
 export GRB_LICENSEID="..."
-export NSP_RESULTS="./results"      # optional, defaults to ./results
+export NSP_RESULTS="./NSP_results"   # optional, defaults to ./NSP_results
 ```
+
+On a hosted notebook, use the platform's secrets mechanism to populate the same three variables.
 
 ## Runtimes (first run, single core)
 
@@ -72,9 +78,16 @@ export NSP_RESULTS="./results"      # optional, defaults to ./results
 | §2 Dataset (50 × MILP at 180 s) | ≈ 2 h | `dataset_raw.pkl`, `dataset_features.parquet` |
 | §4 MILP vs SA (10 instances × (1 MILP + 10 SA seeds)) | ≈ 8 h | `table4_milp_sa.pkl` |
 | §5 Training | ≈ 10 min | `xgb_model.pkl`, `nn_model.pt`, `nn_scaler.pkl` |
-| §6 Trajectories (3 × 10 instances × 60 s) | ≈ 35 min | `trajectories_5_60.npz` |
-| §7 Stress test over N | ≈ 40 min | `stress_test_N.csv` |
-| §8 Factorial design (48 MILP runs + 20 SA runs) | ≈ 4.4 h | `factorial_2x2_repl.pkl` |
+| §6 Hybrid JFI (10 instances × 10 seeds × 2 models) | ≈ 17 h | `hybrid_jfi_multiseed.csv` |
+| §7 Trajectories (3 × 10 instances × 60 s) | ≈ 35 min | `trajectories_5_60.npz` |
+| §8 SHAP | ≈ 5 min | `shap_importance.csv`, `shap_*.pdf` |
+| §9 Pareto fronts (16 solves at 90 s) | ≈ 40 min | `pareto_eq_vs_pref.csv`, `pareto_cont_variation.csv` |
+| §10 Robustness (2 × 3 scenarios × 10 draws) | ≈ 1.5 h | `robustness.csv`, `sa_robustness.csv` |
+| §11 Stress test over N | ≈ 40 min | `stress_test_N.csv` |
+| §12 Factorial design (48 MILP runs + 20 SA runs) | ≈ 4.4 h | `factorial_2x2_repl.pkl` |
+
+**Total from cold: ≈ 34 h**, dominated by §6 and §4. Published result files are provided under
+`results_published/` so the headline numbers can be inspected without re-running anything.
 
 ## Key findings
 
@@ -83,14 +96,26 @@ The MILP wins on the objective and on preference satisfaction, guarantees admiss
 construction, and repairs a disruption in under a second (versus ~157 s for simulated annealing);
 SA retains an edge in time-to-first-solution and in potential scalability.
 
+**Fairness is inherited, not assumed.** Across 200 solves (10 test instances × 10 solver seeds ×
+2 models), the hybrid reproduces the pure MILP's Jain indices exactly — as theory predicts, since a
+warm start changes neither the feasible set nor the objective. The check was run because the MILP is
+*not* deterministic with respect to the solver seed.
+
 **Warm-starting yields a purely primal gain.** It makes reaching admissibility reliable under a tight
 budget — 10/10 instances admissible by ~10 s, versus ~30 s cold — but the trajectories converge beyond
 ~45 s: final solution quality is unchanged. XGBoost and MLP trajectories overlap, so the benefit comes
 from the warm-start paradigm rather than from the specific model.
 
+**Explainability operates at three levels.** Globally, the Pareto fronts (§9) map every weight
+trade-off, so the operating point (1, 1, 2, 0.5) is justified graphically rather than postulated.
+Structurally, primal-constraint saturation shows that coverage is the binding constraint in 20/20 of
+the least-preferred assignments — an analysis only available to approaches carrying a certified bound.
+Locally, SHAP (§8) attributes about 74 % of the model's importance to four descriptors, three of them
+preference-related: the model reads preferences and delegates feasibility to the solver.
+
 **Optimality is only guaranteed relative to the chosen formalisation.** The optimal schedule contains
 blocks of consecutive night shifts — a direct consequence of a continuity penalty applied uniformly
-across shift types. The §8 factorial design (3 replicates, `Threads=1`, differences paired by seed)
+across shift types. The §12 factorial design (3 replicates, `Threads=1`, differences paired by seed)
 quantifies the two candidate remedies:
 
 | Variant | Cost on Z (median, [min, max]) | Night blocks (median [min, max]) |
@@ -116,7 +141,8 @@ replicating the experiments. They are listed here for traceability.
    `P_cont` row is not comparable and the SA's reported continuity advantage **is not supported**.
    Re-evaluated with a single shared evaluator on the reference instance, SA is in fact *worse* than
    the MILP on that dimension. The MILP's dominance on Z is unaffected (in fact strengthened).
-   §8 uses one shared evaluator across all three approaches.
+   The SA implementation is left as-is so §4 still reproduces the reported figures; §12 uses one
+   shared evaluator across all three approaches.
 
 2. **"Strict rest reinforces night blocks" (§6.5) does not replicate.** That claim rested on a single
    run. Across 3 replicates with `Threads=1`: baseline = 41 [39, 44] versus C2 = 43 [41, 43] — the
@@ -148,6 +174,6 @@ is appreciated if this code contributes to published work.
   year   = {2026},
   note   = {Interdisciplinary project, Advanced Master's in Trustworthy AI,
             CentraleSupélec — Université Paris-Saclay},
-  url    = {https://github.com/pietromarcogallo/NSP_trustworthy_AI_interdisciplinary_project/}
+  url    = {https://github.com/<user>/<repo>}
 }
 ```
